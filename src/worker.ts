@@ -33,30 +33,20 @@ export default {
       });
     }
 
-    if (request.method !== "POST") {
-      return jsonResponse<ErrorResponse>(
-        {
-          success: false,
-          error:
-            "POST TypeScript code to compile and run. The code must export a function called 'codemode' with no arguments.",
-        },
-        405
-      );
-    }
+    let tsCode = "";
 
-    const tsCode = await request.text();
+    if (request.method === "GET") {
+      tsCode = new URL(request.url).searchParams.get("code") || "";
+    } else if (request.method === "POST") {
+      tsCode = await request.text();
+    } else {
+      return jsonResponse({success: false, error: "Method not allowed"}, 405);
+    }
 
     if (!tsCode.trim()) {
-      return jsonResponse<ErrorResponse>(
-        {
-          success: false,
-          error: "Request body is empty. Please provide TypeScript code.",
-        },
-        400
-      );
+      return jsonResponse({success: false, error: "Request body is empty. Please provide TypeScript code."}, 400);
     }
 
-    // Compile the TypeScript code
     const compileResult = compileCode(tsCode);
 
     if (!compileResult.success) {

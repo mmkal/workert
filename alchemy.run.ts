@@ -1,7 +1,7 @@
 import alchemy from "alchemy";
 import { Worker, WorkerLoader } from "alchemy/cloudflare";
 
-const app = await alchemy("misha-ts");
+const app = await alchemy("workert");
 
 export const worker = await Worker("compiler", {
   entrypoint: "./src/worker.ts",
