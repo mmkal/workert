@@ -10,7 +10,10 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "dev": "pnpm build && pnpm alchemy dev",
+    "deploy": "pnpm build && pnpm alchemy deploy",
+    "destroy": "pnpm alchemy destroy"
   },
   "keywords": [],
   "author": "",
@@ -18,11 +21,15 @@
   "packageManager": "pnpm@10.24.0",
   "dependencies": {
     "@ts-morph/bootstrap": "^0.28.1",
+    "alchemy": "^0.81.1",
     "path-browserify": "^1.0.1",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
     "esbuild": "^0.27.1",
     "vitest": "^4.0.15"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "workerd", "sharp"]
   }
 }
