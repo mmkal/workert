@@ -19,16 +19,23 @@ Or visit the URL in browser for a simple UI.
 ## Deploy your own
 
 ```bash
-pnpm install
-pnpm deploy
+bun install
+bun run deploy
 ```
 
 Requires [Alchemy](https://github.com/sam-goodwin/alchemy) and Cloudflare credentials.
 
+## Development
+
+```bash
+bun install
+bun test        # run tests
+bun dev     # start local dev server
+```
+
 ## How it works
 
-- Bundles `@ts-morph/bootstrap` + TypeScript compiler with esbuild
-- Stubs out Node.js APIs (`fs`, `path`, etc.) for edge compatibility
+- Bundles `@ts-morph/bootstrap` + TypeScript compiler with Bun
 - Compiled code runs in isolated worker with no network access
 
 ## License

@@ -1,35 +1,24 @@
 {
   "name": "workert",
   "version": "0.0.0",
-  "description": "",
+  "description": "POC of TypeScript compiler running in a Cloudflare Worker",
   "type": "module",
-  "main": "dist/compiler.js",
-  "exports": {
-    ".": "./dist/compiler.js"
-  },
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "build": "node build.mjs",
-    "dev": "pnpm build && pnpm alchemy dev",
-    "deploy": "pnpm build && pnpm alchemy deploy",
-    "destroy": "pnpm alchemy destroy"
+    "test": "bun test",
+    "build": "bun run build.ts",
+    "dev": "bun run build && bun run alchemy dev",
+    "deploy": "bun run build && bun run alchemy deploy",
+    "destroy": "bun run alchemy destroy"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.24.0",
+  "keywords": ["cloudflare", "worker", "typescript", "compiler"],
+  "author": "mmakl",
+  "license": "Apache-2.0",
   "dependencies": {
     "@ts-morph/bootstrap": "^0.28.1",
     "alchemy": "^0.81.1",
-    "path-browserify": "^1.0.1",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "esbuild": "^0.27.1",
-    "vitest": "^4.0.15"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "workerd", "sharp"]
+    "@types/bun": "1.3.4"
   }
 }
