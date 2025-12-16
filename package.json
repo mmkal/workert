@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
-    "build": "bun run build.ts",
-    "dev": "bun run build && bun run alchemy dev",
-    "deploy": "bun run build && bun run alchemy deploy",
+    "dev": "vite dev",
+    "build": "bun build.ts && vite build",
+    "preview": "npm run build && vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    ".build": "bun run build.ts",
+    ".dev": "bun run build && bun run alchemy dev",
+    ".deploy": "bun run build && bun run alchemy deploy",
     "destroy": "bun run alchemy destroy"
   },
   "keywords": ["cloudflare", "worker", "typescript", "compiler"],
@@ -19,6 +23,8 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@types/bun": "1.3.4"
+    "@cloudflare/vite-plugin": "1.18.0",
+    "@types/bun": "1.3.4",
+    "vite": "7.3.0"
   }
 }
