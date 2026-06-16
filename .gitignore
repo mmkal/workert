@@ -2,3 +2,4 @@ node_modules
 dist
 .alchemy
 src/sourcemap-data.ts
+*ignoreme*
