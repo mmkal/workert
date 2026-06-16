@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -25,32 +26,11 @@ import (
 const (
 	currentDirectory = "/"
 	inputFileName    = "/input.ts"
-	libFileName      = "/lib.d.ts"
 	outputBanner     = "/* tsgo wasm was here: /input.ts -> code.js */\n"
-	minimalLibSource = `
-interface Array<T> {
-  length: number;
-  [n: number]: T;
-  reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number, array: T[]) => T): T;
-  reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U;
-}
-interface Boolean {}
-interface CallableFunction extends Function {}
-interface Function {}
-interface IArguments {
-  length: number;
-  [index: number]: any;
-}
-interface NewableFunction extends Function {}
-interface Number {}
-interface Object {}
-interface Promise<T> {}
-interface PromiseLike<T> {}
-interface RegExp {}
-interface String {}
-interface Symbol {}
-`
 )
+
+//go:embed libs/*.d.ts
+var standardLibs embed.FS
 
 type compileResult struct {
 	JS          string              `json:"js"`
@@ -98,14 +78,25 @@ func compileCode(code string) (result compileResult) {
 	}()
 
 	ctx := context.Background()
-	sourceFS := newInlineFS(map[string]string{
-		inputFileName: code,
-		libFileName:   minimalLibSource,
-	})
+	sourceFiles, fileNames, err := standardLibraryFiles()
+	if err != nil {
+		return compileResult{
+			Diagnostics: []compileDiagnostic{{
+				Message:  "native TypeScript compiler could not load standard library: " + err.Error(),
+				Category: diagnostics.CategoryError.Name(),
+			}},
+			Success: false,
+		}
+	}
+	sourceFiles[inputFileName] = code
+	fileNames = append(fileNames, inputFileName)
+
+	sourceFS := newInlineFS(sourceFiles)
 	options := &core.CompilerOptions{
-		Target:              core.ScriptTargetES2020,
+		Target:              core.ScriptTargetES2024,
 		Module:              core.ModuleKindESNext,
 		NoLib:               core.TSTrue,
+		SkipLibCheck:        core.TSTrue,
 		Strict:              core.TSTrue,
 		SkipDefaultLibCheck: core.TSTrue,
 		SourceMap:           core.TSFalse,
@@ -113,7 +104,7 @@ func compileCode(code string) (result compileResult) {
 	}
 	config := &tsoptions.ParsedCommandLine{
 		ParsedConfig: &core.ParsedOptions{
-			FileNames:       []string{libFileName, inputFileName},
+			FileNames:       fileNames,
 			CompilerOptions: options,
 		},
 	}
@@ -167,6 +158,32 @@ func compileCode(code string) (result compileResult) {
 	result.JS = outputBanner + jsText
 	result.Success = true
 	return result
+}
+
+func standardLibraryFiles() (map[string]string, []string, error) {
+	entries, err := standardLibs.ReadDir("libs")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sourceFiles := make(map[string]string, len(entries)+1)
+	fileNames := make([]string, 0, len(entries)+1)
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".d.ts") {
+			continue
+		}
+
+		contents, err := standardLibs.ReadFile("libs/" + entry.Name())
+		if err != nil {
+			return nil, nil, err
+		}
+
+		fileName := "/" + entry.Name()
+		sourceFiles[fileName] = string(contents)
+		fileNames = append(fileNames, fileName)
+	}
+
+	return sourceFiles, fileNames, nil
 }
 
 func findSourceFile(program *compiler.Program, fileName string) *ast.SourceFile {

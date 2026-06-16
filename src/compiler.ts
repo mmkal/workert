@@ -34,7 +34,7 @@ export const compilerInfo: CompilerInfo = {
   name: "typescript-go (tsgo)",
   runtime: "Go wasm",
   mode: "single in-memory /input.ts",
-  lib: "tiny bundled /lib.d.ts",
+  lib: "bundled TypeScript lib.es2024.d.ts",
 };
 
 type NativeCompile = (code: string) => string;

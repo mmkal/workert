@@ -122,6 +122,23 @@ describe("compileCode", () => {
     expect(result.js).toContain("?? 0");
   });
 
+  it("uses real modern ECMAScript library definitions", async () => {
+    const result = await compileCode(`
+      async function values(input: Iterable<number>): Promise<number[]> {
+        const doubled = Array.from(input, value => value * 2).toSorted((a, b) => a - b);
+        const bySize = new Map<number, Promise<number>>();
+        const unique = new Set(doubled);
+        bySize.set(unique.size, Promise.resolve(doubled.at(-1) || 0));
+        return Promise.all(bySize.values());
+      }
+    `);
+
+    expect(result).toMatchObject({
+      success: true,
+      diagnostics: [],
+    });
+  });
+
   it("provides line and column information for errors", async () => {
     const result = await compileCode(`const x: number = "hello";`);
 

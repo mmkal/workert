@@ -9,4 +9,4 @@ This tree was copied without `.git`, tests, testdata, generated coverage, node_m
 Local additions:
 
 - `cmd/workert-wasm`: a restricted wasm command that compiles one in-memory `/input.ts` string and returns JSON `{ js, diagnostics, success }` through `globalThis.__workertTsgoCompile`.
-- The wasm command uses a tiny built-in `/lib.d.ts` instead of upstream bundled libs, so the supported TypeScript surface is intentionally much smaller than full `tsc`.
+- The wasm command embeds the upstream `lib.es2024.d.ts` dependency chain from `internal/bundled/libs`, excluding DOM/WebWorker globals.

@@ -36,7 +36,7 @@ bun dev     # start local dev server
 ## How it works
 
 - Builds a trimmed `typescript-go` wasm compiler from `vendor/typescript-go`
-- Compiles a single in-memory `/input.ts` string with a tiny built-in `lib.d.ts`
+- Compiles a single in-memory `/input.ts` string with bundled TypeScript ES2024 lib definitions
 - Compiled code runs in isolated worker with no network access
 
 ## License
