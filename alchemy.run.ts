@@ -1,13 +1,15 @@
 import alchemy from "alchemy";
-import { Worker, WorkerLoader } from "alchemy/cloudflare";
+import { Vite, WorkerLoader, DurableObjectNamespace } from "alchemy/cloudflare";
+import type { Greeter } from "./src/greeter";
 
 const app = await alchemy("workert");
 
-export const worker = await Worker("compiler", {
+export const worker = await Vite("compiler", {
   entrypoint: "./src/worker.ts",
   url: true,
   bindings: {
     LOADER: WorkerLoader(),
+    GREETER: DurableObjectNamespace<Greeter>("greeter", {className: "Greeter"}),
   },
   compatibilityDate: "2025-06-01",
   compatibilityFlags: ["nodejs_compat"],
