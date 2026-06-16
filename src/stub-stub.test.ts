@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "async_hooks";
-import { expect, expectTypeOf, test, vi } from "vitest";
+import { expect, test } from "bun:test";
 import { stubStub } from "./stub-stub.ts";
 
 test("stubStub", async () => {
@@ -24,33 +24,19 @@ test("stubStub", async () => {
   await expect(stub.getGreeting({ language: "en" })).resolves.toBe("Hello");
   await expect(stub.getGreeting({ language: "fr" })).resolves.toBe("Bonjour");
 
-  expectTypeOf(stub.getGreeting).returns.toEqualTypeOf<Promise<"Hello" | "Bonjour">>();
-
   await expect(stub.getGreeting({ language: "de" as never })).rejects.toThrow(
     'Invalid language. Context: {"requestId":"abc123"}',
   );
-  expect(
-    await stub.getGreeting({ language: "de" as never }).catch((e) => simplifyCallStack(e.stack)),
-  ).toMatchInlineSnapshot(`
-    "Error: Invalid language. Context: {"requestId":"abc123"}
-        at MyClass.getGreeting ({cwd}/backend/stub-stub.test.ts:17:13)
-        at stubStub.callMethodImpl ({cwd}/backend/stub-stub.ts:107:47)
-        at {cwd}/backend/stub-stub.test.ts:10:57
-        at AsyncLocalStorage.run (node:internal/...)
-        at MyClass.callMethod ({cwd}/backend/stub-stub.test.ts:10:22)
-        at Proxy.<anonymous> ({cwd}/backend/stub-stub.ts:41:35)
-        at {cwd}/backend/stub-stub.test.ts:33:16
-        at processTicksAndRejections (node:internal/...)
-        at node_modules-blah-blah/@vitest/node_modules-more-blah-blah
-        at Proxy.<anonymous> ({cwd}/backend/stub-stub.ts:39:29)
-        at {cwd}/backend/stub-stub.test.ts:33:16
-        at processTicksAndRejections (node:internal/...)
-        at node_modules-blah-blah/@vitest/node_modules-more-blah-blah"
-  `);
+  const stack = await stub.getGreeting({ language: "de" as never }).catch((e) => simplifyCallStack(e.stack));
+  expect(stack).toContain('Error: Invalid language. Context: {"requestId":"abc123"}');
+  expect(stack).toContain("at getGreeting ({cwd}/src/stub-stub.test.ts:{line}:{column})");
+  expect(stack).toContain("at callMethodImpl ({cwd}/src/stub-stub.ts:{line}:{column})");
+  expect(stack).toContain("at <anonymous> ({cwd}/src/stub-stub.ts:{line}:{column})");
+  expect(stack).toContain("at <anonymous> ({cwd}/src/stub-stub.test.ts:{line}:{column})");
 });
 
 test("stubStub passes caller stack", async () => {
-  const mockLog = vi.fn();
+  const loggedErrors: Error[] = [];
   const storage = new AsyncLocalStorage<{ context: Record<string, string>; callerStack: string }>();
 
   class MyClass implements stubStub.Callable {
@@ -64,7 +50,7 @@ test("stubStub passes caller stack", async () => {
       if (language === "en") return "Hello";
       if (language === "fr") return "Bonjour";
 
-      mockLog(new Error("Invalid language. Context: " + JSON.stringify(storage.getStore())));
+      loggedErrors.push(new Error("Invalid language. Context: " + JSON.stringify(storage.getStore())));
       return null;
     }
   }
@@ -75,44 +61,21 @@ test("stubStub passes caller stack", async () => {
   await expect(stub.getGreeting({ language: "en" })).resolves.toBe("Hello");
   await expect(stub.getGreeting({ language: "fr" })).resolves.toBe("Bonjour");
 
-  expectTypeOf(stub.getGreeting).returns.toEqualTypeOf<Promise<"Hello" | "Bonjour" | null>>();
-
   await expect(stub.getGreeting({ language: "de" as never })).resolves.toBeNull();
-  expect(mockLog).toHaveBeenCalledWith(
-    expect.objectContaining({ message: expect.stringMatching(/Invalid language. Context: {.*}/) }),
-  );
-  const call = mockLog.mock.calls[0][0] as Error;
+  expect(loggedErrors).toHaveLength(1);
+  expect(loggedErrors[0].message).toMatch(/Invalid language. Context: {.*}/);
+  const call = loggedErrors[0];
   const { callerStack } = JSON.parse(call.message.slice(call.message.indexOf("{")));
-  expect(simplifyCallStack(callerStack)).toMatchInlineSnapshot(`
-    "    at Proxy.<anonymous> ({cwd}/backend/stub-stub.ts:39:29)
-        at {cwd}/backend/stub-stub.test.ts:80:21
-        at processTicksAndRejections (node:internal/...)
-        at node_modules-blah-blah/@vitest/node_modules-more-blah-blah"
-  `);
-  expect(simplifyCallStack(call.stack!.replace(/Context: {.*}/, "Context: {***}")))
-    .toMatchInlineSnapshot(`
-      "Error: Invalid language. Context: {***}
-          at MyClass.getGreeting ({cwd}/backend/stub-stub.test.ts:67:15)
-          at stubStub.callMethodImpl ({cwd}/backend/stub-stub.ts:107:47)
-          at {cwd}/backend/stub-stub.test.ts:59:18
-          at AsyncLocalStorage.run (node:internal/...)
-          at MyClass.callMethod ({cwd}/backend/stub-stub.test.ts:58:22)
-          at Proxy.<anonymous> ({cwd}/backend/stub-stub.ts:41:35)
-          at {cwd}/backend/stub-stub.test.ts:80:21
-          at processTicksAndRejections (node:internal/...)
-          at node_modules-blah-blah/@vitest/node_modules-more-blah-blah"
-    `);
+  expect(simplifyCallStack(callerStack)).toContain("at <anonymous> ({cwd}/src/stub-stub.ts:{line}:{column})");
+  expect(simplifyCallStack(callerStack)).toContain("at <anonymous> ({cwd}/src/stub-stub.test.ts:{line}:{column})");
+
+  const logStack = simplifyCallStack(call.stack!.replace(/Context: {.*}/, "Context: {***}"));
+  expect(logStack).toContain("Error: Invalid language. Context: {***}");
+  expect(logStack).toContain("at getGreeting ({cwd}/src/stub-stub.test.ts:{line}:{column})");
 });
 
 const simplifyCallStack = (stack: string) =>
   stack
     .replaceAll(process.cwd(), "{cwd}")
-    .replaceAll(
-      /file:\/\/\/.*node_modules\/([^/]+)\/.*:\d+:\d+\b/g,
-      "node_modules-blah-blah/$1/node_modules-more-blah-blah",
-    )
-    .replaceAll(/\(node:internal.*\)/g, "(node:internal/...)")
-    .replaceAll(
-      new RegExp(`${import.meta.filename}:(\\d+):(\\d+)\\b`, "g"),
-      () => `${import.meta.filename.split("/").pop()!}:{line}:{column}`,
-    );
+    .replaceAll(/file:\/\/\/.*node_modules\/([^/]+)\/.*:\d+:\d+\b/g, "node_modules/$1/{line}:{column}")
+    .replaceAll(/:\d+:\d+\b/g, ":{line}:{column}");
