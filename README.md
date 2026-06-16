@@ -35,7 +35,8 @@ bun dev     # start local dev server
 
 ## How it works
 
-- Bundles `@ts-morph/bootstrap` + TypeScript compiler with Bun
+- Builds a trimmed `typescript-go` wasm compiler from `vendor/typescript-go`
+- Compiles a single in-memory `/input.ts` string with a tiny built-in `lib.d.ts`
 - Compiled code runs in isolated worker with no network access
 
 ## License

@@ -30,6 +30,11 @@ test("worker compiles and runs TypeScript inside a dynamic workerd worker", asyn
   expect(await response.json()).toMatchObject({
     success: true,
     result: { sum: 10, label: "workerd" },
+    compiler: {
+      name: "typescript-go (tsgo)",
+      runtime: "Go wasm",
+      js: expect.stringContaining("/* tsgo wasm was here:"),
+    },
   });
 });
 
@@ -54,13 +59,19 @@ async function createWorkerFixture() {
     outdir: tempDir,
     target: "browser",
     format: "esm",
-    external: ["cloudflare:workers"],
+    external: ["cloudflare:workers", "*.wasm"],
   });
 
   if (!build.success) {
     await fs.rm(tempDir, { recursive: true, force: true });
     throw new Error(renderBuildLogs(build.logs));
   }
+
+  await fs.mkdir(path.join(tempDir, "tsgo-wasm"), { recursive: true });
+  await fs.copyFile(
+    path.join(sourceDir, "tsgo-wasm", "tsgo.wasm"),
+    path.join(tempDir, "tsgo-wasm", "tsgo.wasm")
+  );
 
   let miniflare: Miniflare | undefined;
   try {
@@ -69,7 +80,10 @@ async function createWorkerFixture() {
       modulesRoot: tempDir,
       scriptPath: "worker.js",
       modules: true,
-      modulesRules: [{ type: "ESModule", include: ["**/*.js"] }],
+      modulesRules: [
+        { type: "ESModule", include: ["**/*.js"] },
+        { type: "CompiledWasm", include: ["**/*.wasm"] },
+      ],
       compatibilityDate: "2025-06-01",
       compatibilityFlags: ["nodejs_compat"],
       workerLoaders: { LOADER: {} },

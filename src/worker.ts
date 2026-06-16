@@ -1,7 +1,10 @@
-// Must be first - sets up globals before TypeScript compiler loads
-import "./shims";
-
-import { compileCode, formatDiagnostics, type Diagnostic } from "./compiler";
+import {
+  compileCode,
+  compilerInfo,
+  formatDiagnostics,
+  type CompilerInfo,
+  type Diagnostic,
+} from "./compiler";
 import { stubStub } from "./stub-stub";
 import type { worker } from "../alchemy.run";
 
@@ -11,15 +14,21 @@ export { Greeter } from "./greeter";
 interface SuccessResponse {
   success: true;
   result: unknown;
+  compiler?: CompilerResponseInfo;
 }
 
 interface ErrorResponse {
   success: false;
   error: string;
   diagnostics?: Diagnostic[];
+  compiler?: CompilerResponseInfo;
 }
 
 type ApiResponse = SuccessResponse | ErrorResponse;
+
+interface CompilerResponseInfo extends CompilerInfo {
+  js: string;
+}
 
 export default {
   async fetch(
@@ -78,8 +87,13 @@ export default {
         "}",
       ].join('\n')
       const html = `
-        <main style="display: flex; flex-direction: column; max-width: 600px; margin: 12px;">
+        <main style="display: flex; flex-direction: column; max-width: 720px; margin: 12px; font-family: system-ui, sans-serif;">
           <h2>write some typescript code below</h2>
+          <p>
+            <strong>compiler:</strong>
+            <code>${compilerInfo.name}</code> via <code>${compilerInfo.runtime}</code>,
+            using <code>${compilerInfo.mode}</code> and <code>${compilerInfo.lib}</code>.
+          </p>
           <p>the code will be executed in a dynamic worker. you must define a function called <code>codemode</code>.</p>
           <textarea
             id="tscode"
@@ -104,7 +118,8 @@ export default {
       return jsonResponse({success: false, error: "Request body is empty. Please provide TypeScript code."}, 400);
     }
 
-    const compileResult = compileCode(code);
+    const compileResult = await compileCode(code);
+    const responseCompiler = { ...compilerInfo, js: compileResult.js };
 
     if (!compileResult.success) {
       return jsonResponse<ErrorResponse>(
@@ -112,6 +127,7 @@ export default {
           success: false,
           error: `TypeScript compilation failed:\n${formatDiagnostics(compileResult.diagnostics)}`,
           diagnostics: compileResult.diagnostics,
+          compiler: responseCompiler,
         },
         400
       );
@@ -169,12 +185,13 @@ export default {
 
       // Return the response from the dynamic worker
       const result = await response.json();
-      return jsonResponse(result as ApiResponse, response.status);
+      return jsonResponse({ ...(result as ApiResponse), compiler: responseCompiler }, response.status);
     } catch (error) {
       return jsonResponse<ErrorResponse>(
         {
           success: false,
           error: `Execution failed: ${error instanceof Error ? error.message : String(error)}`,
+          compiler: responseCompiler,
         },
         500
       );
@@ -271,6 +288,9 @@ function jsonResponse<T>(data: T, status = 200): Response {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
+      "Access-Control-Expose-Headers": "X-Workert-Compiler, X-Workert-Compiler-Mode",
+      "X-Workert-Compiler": `${compilerInfo.name}; ${compilerInfo.runtime}`,
+      "X-Workert-Compiler-Mode": `${compilerInfo.mode}; ${compilerInfo.lib}`,
     },
   });
 }

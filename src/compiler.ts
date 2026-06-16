@@ -1,4 +1,5 @@
-import { createProjectSync, ts } from "@ts-morph/bootstrap";
+import "./tsgo-wasm/wasm_exec.js";
+import tsgoWasm from "./tsgo-wasm/tsgo.wasm";
 
 export interface CompileResult {
   /** The compiled JavaScript code, or empty string if compilation failed */
@@ -22,6 +23,41 @@ export interface Diagnostic {
   column?: number;
 }
 
+export interface CompilerInfo {
+  name: string;
+  runtime: string;
+  mode: string;
+  lib: string;
+}
+
+export const compilerInfo: CompilerInfo = {
+  name: "typescript-go (tsgo)",
+  runtime: "Go wasm",
+  mode: "single in-memory /input.ts",
+  lib: "tiny bundled /lib.d.ts",
+};
+
+type NativeCompile = (code: string) => string;
+
+interface GoRuntime {
+  importObject: WebAssembly.Imports;
+  run(instance: WebAssembly.Instance): Promise<void>;
+}
+
+interface GoConstructor {
+  new (): GoRuntime;
+}
+
+declare global {
+  // Defined by wasm_exec.js.
+  var Go: GoConstructor | undefined;
+  // Registered by vendor/typescript-go/cmd/workert-wasm/main.go.
+  var __workertTsgoCompile: NativeCompile | undefined;
+  var Bun: { file(path: string): { arrayBuffer(): Promise<ArrayBuffer> } } | undefined;
+}
+
+let nativeCompilePromise: Promise<NativeCompile> | undefined;
+
 /**
  * Compiles a string of TypeScript code and returns the compiled JavaScript
  * along with any diagnostic errors.
@@ -29,115 +65,9 @@ export interface Diagnostic {
  * @param code - The TypeScript source code to compile
  * @returns The compilation result including JS output and diagnostics
  */
-export function compileCode(code: string): CompileResult {
-  const project = createProjectSync({
-    useInMemoryFileSystem: true,
-    skipLoadingLibFiles: false,
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2020,
-      module: ts.ModuleKind.ESNext,
-      lib: ["lib.es2020.d.ts"],
-      strict: true,
-      noEmit: false,
-      declaration: false,
-      sourceMap: false,
-    },
-  });
-
-  // Create a source file from the input code
-  const sourceFile = project.createSourceFile("/input.ts", code);
-
-  // Create a program to get diagnostics
-  const program = project.createProgram();
-
-  // Get all pre-emit diagnostics (syntactic + semantic)
-  const allDiagnostics = ts.getPreEmitDiagnostics(program, sourceFile);
-
-  // Convert diagnostics to our format
-  const diagnostics: Diagnostic[] = allDiagnostics.map((d) => {
-    let line: number | undefined;
-    let column: number | undefined;
-
-    if (d.file && d.start !== undefined) {
-      const pos = d.file.getLineAndCharacterOfPosition(d.start);
-      line = pos.line + 1; // Convert to 1-indexed
-      column = pos.character;
-    }
-
-    return {
-      message: flattenDiagnosticMessage(d.messageText),
-      code: d.code,
-      category: getCategoryString(d.category),
-      line,
-      column,
-    };
-  });
-
-  // Check if there are any errors (not just warnings)
-  const hasErrors = diagnostics.some((d) => d.category === "error");
-
-  // Emit the compiled code
-  let js = "";
-  if (!hasErrors) {
-    const emitResult = program.emit(
-      sourceFile,
-      (fileName, text) => {
-        if (fileName.endsWith(".js")) {
-          js = text;
-        }
-      },
-      undefined,
-      false
-    );
-
-    // Add any emit diagnostics
-    for (const d of emitResult.diagnostics) {
-      diagnostics.push({
-        message: flattenDiagnosticMessage(d.messageText),
-        code: d.code,
-        category: getCategoryString(d.category),
-      });
-    }
-  }
-
-  return {
-    js,
-    diagnostics,
-    success: !hasErrors,
-  };
-}
-
-function flattenDiagnosticMessage(
-  messageText: string | ts.DiagnosticMessageChain
-): string {
-  if (typeof messageText === "string") {
-    return messageText;
-  }
-  // For DiagnosticMessageChain, concatenate all messages
-  let result = messageText.messageText;
-  if (messageText.next) {
-    for (const next of messageText.next) {
-      result += "\n  " + flattenDiagnosticMessage(next);
-    }
-  }
-  return result;
-}
-
-function getCategoryString(
-  category: ts.DiagnosticCategory
-): Diagnostic["category"] {
-  switch (category) {
-    case ts.DiagnosticCategory.Error:
-      return "error";
-    case ts.DiagnosticCategory.Warning:
-      return "warning";
-    case ts.DiagnosticCategory.Suggestion:
-      return "suggestion";
-    case ts.DiagnosticCategory.Message:
-      return "message";
-    default:
-      return "error";
-  }
+export async function compileCode(code: string): Promise<CompileResult> {
+  const nativeCompile = await getNativeCompile();
+  return JSON.parse(nativeCompile(code)) as CompileResult;
 }
 
 /**
@@ -145,15 +75,74 @@ function getCategoryString(
  */
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {
   return diagnostics
-    .map((d) => {
-      const location = d.line !== undefined ? `:${d.line}:${d.column}` : "";
-      const prefix =
-        d.category === "error"
-          ? "error"
-          : d.category === "warning"
-            ? "warning"
-            : d.category;
-      return `${prefix} TS${d.code}${location}: ${d.message}`;
+    .map((diagnostic) => {
+      const location =
+        diagnostic.line !== undefined
+          ? `:${diagnostic.line}:${diagnostic.column}`
+          : "";
+      return `${diagnostic.category} TS${diagnostic.code}${location}: ${diagnostic.message}`;
     })
     .join("\n");
+}
+
+async function createNativeCompile(
+  wasmInput: WebAssembly.Module | string
+): Promise<NativeCompile> {
+  if (!globalThis.Go) {
+    throw new Error("Go wasm runtime did not initialize");
+  }
+
+  const go = new globalThis.Go();
+  const instance = await instantiateWasm(wasmInput, go.importObject);
+  void go.run(instance).catch((error) => {
+    console.error("tsgo wasm runtime exited", error);
+  });
+
+  const compile = await waitForNativeCompileRegistration();
+  return compile;
+}
+
+function getNativeCompile(): Promise<NativeCompile> {
+  if (!nativeCompilePromise) {
+    nativeCompilePromise = createNativeCompile(tsgoWasm);
+  }
+  return nativeCompilePromise;
+}
+
+async function waitForNativeCompileRegistration(): Promise<NativeCompile> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const compile = globalThis.__workertTsgoCompile;
+    if (compile) {
+      return compile;
+    }
+    await Promise.resolve();
+  }
+
+  throw new Error("tsgo wasm compiler did not register compile(code)");
+}
+
+async function instantiateWasm(
+  wasmInput: WebAssembly.Module | string,
+  imports: WebAssembly.Imports
+): Promise<WebAssembly.Instance> {
+  if (wasmInput instanceof WebAssembly.Module) {
+    const instance = await WebAssembly.instantiate(wasmInput, imports);
+    return instance;
+  }
+
+  const wasmBytes = await readWasmBytes(wasmInput);
+  const instantiated = await WebAssembly.instantiate(wasmBytes, imports);
+  return instantiated.instance;
+}
+
+async function readWasmBytes(pathOrUrl: string): Promise<ArrayBuffer> {
+  if (globalThis.Bun) {
+    return globalThis.Bun.file(pathOrUrl).arrayBuffer();
+  }
+
+  const response = await fetch(pathOrUrl);
+  if (!response.ok) {
+    throw new Error(`failed to load tsgo wasm: ${response.status}`);
+  }
+  return response.arrayBuffer();
 }

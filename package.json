@@ -6,10 +6,11 @@
   "scripts": {
     "test": "bun test",
     "dev": "vite dev",
-    "build": "bun build.ts && vite build",
+    "build:tsgo-wasm": "bun scripts/build-tsgo-wasm.ts",
+    "build": "bun run build:tsgo-wasm && bun build.ts && vite build",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",
-    ".build": "bun run build.ts",
+    ".build": "bun run build:tsgo-wasm && bun run build.ts",
     ".dev": "bun run build && bun run alchemy dev",
     ".deploy": "bun run build && bun run alchemy deploy",
     "destroy": "bun run alchemy destroy"
@@ -18,9 +19,7 @@
   "author": "mmakl",
   "license": "Apache-2.0",
   "dependencies": {
-    "@ts-morph/bootstrap": "^0.28.1",
-    "alchemy": "^0.81.1",
-    "typescript": "^5.9.3"
+    "alchemy": "^0.81.1"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.18.0",
