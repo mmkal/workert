@@ -18,7 +18,15 @@ const wasmExecPath = path.join(outputDir, "wasm_exec.js");
 
 mkdirSync(outputDir, { recursive: true });
 
-execFileSync("go", ["build", "-ldflags=-s -w", "-o", "../../src/tsgo-wasm/tsgo.wasm", "./cmd/workert-wasm"], {
+execFileSync("go", [
+  "build",
+  "-trimpath",
+  "-buildvcs=false",
+  "-ldflags=-s -w -buildid=",
+  "-o",
+  "../../src/tsgo-wasm/tsgo.wasm",
+  "./cmd/workert-wasm",
+], {
   cwd: vendorDir,
   env: {
     ...process.env,
