@@ -10,7 +10,6 @@ describe("compileCode", () => {
 
     expect(result.success).toBe(true);
     expect(result.diagnostics).toHaveLength(0);
-    expect(result.js).toStartWith("/* tsgo wasm was here:");
     expect(result.js).toContain("const x = 5");
     expect(result.js).toContain('const y = "hello"');
   });

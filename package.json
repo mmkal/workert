@@ -3,23 +3,29 @@
   "version": "0.0.0",
   "description": "POC of TypeScript compiler running in a Cloudflare Worker",
   "type": "module",
+  "packageManager": "pnpm@10.30.1",
   "scripts": {
     "test": "bun test",
     "dev": "vite dev",
-    "build:tsgo-wasm": "bun scripts/build-tsgo-wasm.ts",
-    "build": "bun run build:tsgo-wasm && bun build.ts && vite build",
-    "preview": "npm run build && vite preview",
-    "deploy": "npm run build && wrangler deploy",
-    ".build": "bun run build:tsgo-wasm && bun run build.ts",
+    "build": "bun build.ts && vite build",
+    "preview": "pnpm run build && vite preview",
+    "deploy": "pnpm run build && wrangler deploy",
+    ".build": "bun run build.ts",
     ".dev": "bun run build && bun run alchemy dev",
     ".deploy": "bun run build && bun run alchemy deploy",
     "destroy": "bun run alchemy destroy"
   },
-  "keywords": ["cloudflare", "worker", "typescript", "compiler"],
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "typescript",
+    "compiler"
+  ],
   "author": "mmakl",
   "license": "Apache-2.0",
   "dependencies": {
-    "alchemy": "^0.81.1"
+    "alchemy": "^0.81.1",
+    "tswasm": "0.1.0-alpha.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.18.0",

@@ -34,7 +34,7 @@ The response includes the result plus compiler metadata and emitted JavaScript:
     "runtime": "Go wasm",
     "mode": "single in-memory /input.ts",
     "lib": "bundled TypeScript lib.es2024.d.ts",
-    "js": "/* tsgo wasm was here: /input.ts -> code.js */\n\"use strict\";\nasync function codemode() { return 1 + 1; }\n"
+    "js": "\"use strict\";\nasync function codemode() { return 1 + 1; }\n"
   }
 }
 ```
@@ -53,29 +53,29 @@ the workload is constrained enough to avoid a full filesystem and package graph.
 ## Deploy your own
 
 ```bash
-bun install
-bun run deploy
+pnpm install
+pnpm run deploy
 ```
 
-Requires Bun, Go, Wrangler/Cloudflare credentials, and access to a Cloudflare
+Requires Bun, pnpm, Wrangler/Cloudflare credentials, and access to a Cloudflare
 Workers plan that accepts the current compressed upload size. This POC fits the
 paid Worker script-size limit, but not the free 3 MiB compressed limit.
 
 ## Development
 
 ```bash
-bun install
-bun test        # run tests
-bun dev         # start local dev server
+pnpm install
+pnpm test       # run tests
+pnpm dev        # start local dev server
 ```
 
 ## How it works
 
-- Builds a trimmed `typescript-go` wasm compiler from `vendor/typescript-go`
-- Patches Go's `wasm_exec.js` runtime for Worker-safe startup
+- Uses the published `tswasm` package, which packages `typescript-go` as wasm
 - Lazily initializes the tsgo wasm compiler inside the Cloudflare Worker isolate
 - Compiles one in-memory `/input.ts` string with strict ES2024/ESNext options
-- Embeds the real TypeScript `lib.es2024.d.ts` dependency chain, so basics like
+- Uses the real TypeScript `lib.es2024.d.ts` dependency chain bundled by
+  `tswasm`, so basics like
   `Promise`, `Iterable`, `Map`, `Set`, `Array.from`, `Array.prototype.at`, and
   `toSorted` type-check without a fake minimal lib
 - Returns emitted JavaScript in `compiler.js`
