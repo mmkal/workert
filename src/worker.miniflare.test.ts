@@ -104,7 +104,7 @@ function ensureProductionBuild(repoRoot: string) {
     return;
   }
 
-  execFileSync("pnpm", ["run", "build"], {
+  execFileSync("bun", ["run", "build"], {
     cwd: repoRoot,
     stdio: "inherit",
   });

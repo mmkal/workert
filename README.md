@@ -53,20 +53,20 @@ the workload is constrained enough to avoid a full filesystem and package graph.
 ## Deploy your own
 
 ```bash
-pnpm install
-pnpm run deploy
+bun install
+bun run deploy
 ```
 
-Requires Bun, pnpm, Wrangler/Cloudflare credentials, and access to a Cloudflare
+Requires Bun, Wrangler/Cloudflare credentials, and access to a Cloudflare
 Workers plan that accepts the current compressed upload size. This POC fits the
 paid Worker script-size limit, but not the free 3 MiB compressed limit.
 
 ## Development
 
 ```bash
-pnpm install
-pnpm test       # run tests
-pnpm dev        # start local dev server
+bun install
+bun test        # run tests
+bun dev         # start local dev server
 ```
 
 ## How it works
