@@ -1,9 +1,12 @@
 import { expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { Miniflare } from "miniflare";
+
+let productionBuildReady = false;
 
 test("worker compiles and runs TypeScript inside a dynamic workerd worker", async () => {
   await using fixture = await createWorkerFixture();
@@ -30,6 +33,11 @@ test("worker compiles and runs TypeScript inside a dynamic workerd worker", asyn
   expect(await response.json()).toMatchObject({
     success: true,
     result: { sum: 10, label: "workerd" },
+    compiler: {
+      name: "typescript-go (tsgo)",
+      runtime: "Go wasm",
+      js: expect.stringContaining("async function codemode"),
+    },
   });
 });
 
@@ -47,29 +55,24 @@ test("worker stub-stub route calls a real Durable Object binding", async () => {
 });
 
 async function createWorkerFixture() {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "workert-miniflare-fixture-"));
   const sourceDir = path.dirname(import.meta.filename);
-  const build = await Bun.build({
-    entrypoints: [path.join(sourceDir, "worker.ts")],
-    outdir: tempDir,
-    target: "browser",
-    format: "esm",
-    external: ["cloudflare:workers"],
-  });
+  const repoRoot = path.dirname(sourceDir);
+  ensureProductionBuild(repoRoot);
 
-  if (!build.success) {
-    await fs.rm(tempDir, { recursive: true, force: true });
-    throw new Error(renderBuildLogs(build.logs));
-  }
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "workert-miniflare-fixture-"));
+  const buildDir = path.join(repoRoot, "dist", "workert_compiler_mmkal");
 
   let miniflare: Miniflare | undefined;
   try {
     miniflare = new Miniflare({
-      rootPath: tempDir,
-      modulesRoot: tempDir,
-      scriptPath: "worker.js",
+      rootPath: buildDir,
+      modulesRoot: buildDir,
+      scriptPath: "index.js",
       modules: true,
-      modulesRules: [{ type: "ESModule", include: ["**/*.js"] }],
+      modulesRules: [
+        { type: "ESModule", include: ["**/*.js"] },
+        { type: "CompiledWasm", include: ["**/*.wasm"] },
+      ],
       compatibilityDate: "2025-06-01",
       compatibilityFlags: ["nodejs_compat"],
       workerLoaders: { LOADER: {} },
@@ -96,8 +99,16 @@ async function createWorkerFixture() {
   }
 }
 
-function renderBuildLogs(logs: Bun.BuildMessage[]) {
-  return logs.map((log) => log.message).join("\n") || "Worker bundle failed without build logs.";
+function ensureProductionBuild(repoRoot: string) {
+  if (productionBuildReady) {
+    return;
+  }
+
+  execFileSync("bun", ["run", "build"], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
+  productionBuildReady = true;
 }
 
 interface WorkerFetcherLike {

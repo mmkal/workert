@@ -2,8 +2,8 @@ import { describe, it, expect } from "bun:test";
 import { compileCode, formatDiagnostics } from "./compiler";
 
 describe("compileCode", () => {
-  it("compiles valid TypeScript code", () => {
-    const result = compileCode(`
+  it("compiles valid TypeScript code", async () => {
+    const result = await compileCode(`
       const x: number = 5;
       const y: string = "hello";
     `);
@@ -14,8 +14,8 @@ describe("compileCode", () => {
     expect(result.js).toContain('const y = "hello"');
   });
 
-  it("compiles interfaces and functions", () => {
-    const result = compileCode(`
+  it("compiles interfaces and functions", async () => {
+    const result = await compileCode(`
       interface User {
         name: string;
         age: number;
@@ -34,8 +34,8 @@ describe("compileCode", () => {
     expect(result.js).not.toContain("interface");
   });
 
-  it("detects type errors - property does not exist", () => {
-    const result = compileCode(`
+  it("detects type errors - property does not exist", async () => {
+    const result = await compileCode(`
       interface User {
         name: string;
         age: number;
@@ -57,8 +57,8 @@ describe("compileCode", () => {
     expect(error.line).toBeDefined();
   });
 
-  it("detects type mismatch errors", () => {
-    const result = compileCode(`
+  it("detects type mismatch errors", async () => {
+    const result = await compileCode(`
       const x: number = "hello";
     `);
 
@@ -70,8 +70,8 @@ describe("compileCode", () => {
     expect(error.code).toBe(2322); // Type 'X' is not assignable to type 'Y'
   });
 
-  it("detects syntax errors", () => {
-    const result = compileCode(`
+  it("detects syntax errors", async () => {
+    const result = await compileCode(`
       const x: number = 
     `);
 
@@ -80,8 +80,8 @@ describe("compileCode", () => {
     expect(result.diagnostics[0].category).toBe("error");
   });
 
-  it("detects undefined variable", () => {
-    const result = compileCode(`
+  it("detects undefined variable", async () => {
+    const result = await compileCode(`
       const x = unknownVariable;
     `);
 
@@ -90,8 +90,8 @@ describe("compileCode", () => {
     expect(result.diagnostics[0].code).toBe(2304); // Cannot find name
   });
 
-  it("handles complex type annotations", () => {
-    const result = compileCode(`
+  it("handles complex type annotations", async () => {
+    const result = await compileCode(`
       type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 
       function divide(a: number, b: number): Result<number, string> {
@@ -107,8 +107,8 @@ describe("compileCode", () => {
     expect(result.js).toContain("function divide(a, b)");
   });
 
-  it("supports ES2020 features", () => {
-    const result = compileCode(`
+  it("supports ES2020 features", async () => {
+    const result = await compileCode(`
       const obj = { a: 1, b: 2 };
       const value = obj?.a ?? 0;
       const bigInt = 9007199254740991n;
@@ -121,8 +121,25 @@ describe("compileCode", () => {
     expect(result.js).toContain("?? 0");
   });
 
-  it("provides line and column information for errors", () => {
-    const result = compileCode(`const x: number = "hello";`);
+  it("uses real modern ECMAScript library definitions", async () => {
+    const result = await compileCode(`
+      async function values(input: Iterable<number>): Promise<number[]> {
+        const doubled = Array.from(input, value => value * 2).toSorted((a, b) => a - b);
+        const bySize = new Map<number, Promise<number>>();
+        const unique = new Set(doubled);
+        bySize.set(unique.size, Promise.resolve(doubled.at(-1) || 0));
+        return Promise.all(bySize.values());
+      }
+    `);
+
+    expect(result).toMatchObject({
+      success: true,
+      diagnostics: [],
+    });
+  });
+
+  it("provides line and column information for errors", async () => {
+    const result = await compileCode(`const x: number = "hello";`);
 
     expect(result.success).toBe(false);
     const error = result.diagnostics[0];
@@ -130,8 +147,8 @@ describe("compileCode", () => {
     expect(error.column).toBeDefined();
   });
 
-  it("handles multiple errors", () => {
-    const result = compileCode(`
+  it("handles multiple errors", async () => {
+    const result = await compileCode(`
       const x: number = "hello";
       const y: string = 123;
       const z = unknownVar;
